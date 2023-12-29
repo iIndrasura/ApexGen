@@ -3,33 +3,48 @@ import random, time, imaplib, email, string, quopri, requests, json, sys
 from bs4 import BeautifulSoup
 import playwright.sync_api as sync_api
 from discord_webhook import DiscordWebhook, DiscordEmbed
-#from captcha import recaptchav2
-from settings import *
+# from captcha import recaptchav2
+from settings import get_webhooks_url, get_prefix       # from settings import *
 
 def generate_random_string(length):
     return ''.join(random.choices(string.ascii_lowercase, k=length))
 
 def generate_random_passw(length):
-    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+    uppercase_letter = random.choice(string.ascii_uppercase)                                            # Ensure at least one uppercase letter
+    remaining_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length - 1))     # Generate the remaining characters with lowercase letters and digits
+    password = uppercase_letter + remaining_chars
+    password_chars = list(password)                                                                     # Shuffle the characters to randomize the order
+    random.shuffle(password_chars)
+    return ''.join(password_chars)
 
 
 #######################################################################
 ##                     OUTLOOK START                                 ##
 #######################################################################
 
-def createOutlook():
+def createOutlook(chrome_args=None, context_options=None):
     with sync_api.sync_playwright() as playwright:
         
         # Generate a random email address and password
-
-        email = f"{prefix}{generate_random_string(7)}@outlook.com"
-        password = f"a{generate_random_passw(9)}#$@"
+        prefix = get_prefix()
+        email = f"{prefix}{generate_random_string(8)}@outlook.com"
+        password = f"{generate_random_passw(9)}#$@"
         
         # proxy = requests.get('https://proxyelite.info/api/getproxy/')
         # decoded_proxy = proxy.content.decode('utf-8')
         # print(decoded_proxy)
-        browser = playwright.chromium.launch(headless=False,channel="chrome",args=['--disable-infobars', '--undetected-playwright'])  #proxy={"server": f"http://{decoded_proxy}"}
-        page = browser.new_page()
+        # browser = playwright.chromium.launch(headless=False,channel="chrome", args=chrome_args)        # args=['--disable-infobars', '--undetected-playwright']      #proxy={"server": f"http://{decoded_proxy}"}
+        
+        # If context_options is None, launch the browser without a proxy
+        if context_options is not None:
+            browser = playwright.chromium.launch(headless=False, channel="chrome", args=chrome_args, proxy=context_options["proxy"])
+            context = browser.new_context(**context_options)    # Create a context with the configured options
+        else:
+            browser = playwright.chromium.launch(headless=False, channel="chrome", args=chrome_args)
+            context = browser.new_context()                     # Create a context without proxy options
+        
+        #page = browser.new_page()
+        page = context.new_page()   # Perform your tasks using the 'page' object
         page.set_default_timeout(timeout=120000)
         page.set_default_navigation_timeout(5000000)
         page.goto("https://signup.live.com/?lic=1")
@@ -81,15 +96,53 @@ def createOutlook():
         page.wait_for_selector('#identityBanner')
 
         # Have a human solve the CAPTCHA and enter the solution manually
-        input('Waiting for Captcha to be Solved!')
+        print('Waiting for Captcha to be Solved!')
         
+        # ////////////////////////////////////////////////////////////////////
+        # CSS selector for the element with the text
+        page.wait_for_selector(f'span.css-105:has-text("{"Your Microsoft account brings everything together"}")')
+        print("Captcha Solved")
+
+        # Click on the "Continue" button
+        page.click('span.ms-Button-label.label-117')
+        print("Continue")
+
         # Wait for the account creation success page to load
         try:
             page.locator('#idBtn_Back').click()
+            print("Stay Logged in: No")
+        except:
+            pass
+
+        try:
+            page.locator('#iCancel').click()
+            print("No Thanks to auth")
+        except:
+            pass
+
+        try:
+            page.locator('#home.banner.alta-column.cta')
+            print("1")
+            page.locator('a[aria-label="Your info"]')
+            print("2")
+            page.locator('a[aria-label="Privacy"]')
+            print("3")
+            page.locator('span#id__33')
+            print("4")
         except:
             pass
 
         page.locator('#home.banner.alta-column.cta')
+        # ////////////////////////////////////////////////////////////////////
+        
+        # # Wait for the account creation success page to load
+        # try:
+        #     page.locator('#idBtn_Back').click()
+        #     print("Stay Logged in: No")
+        # except:
+        #     pass
+        
+        # page.locator('#home.banner.alta-column.cta')
 
         # Save the username and password to a file
         with open('credentials.txt', 'a') as f:
@@ -97,7 +150,8 @@ def createOutlook():
             f.close()
             print('Account Saved!')
 
-        input("Press Enter When Done (Wait for it to login Completely!)")
+        time.sleep(2)
+        # input("Press Enter When Done (Wait for it to login Completely!)")
     discordSend('Email', email, password)
     return email, password
 
@@ -235,14 +289,24 @@ def extract_emails_for_verification_link(username, email_password):
  
     return verification_link
 
-def createSteam(email, password):
+def createSteam(email, password, chrome_args=None, context_options=None):
 
     with sync_api.sync_playwright() as playwright:
  
-        browser = playwright.chromium.launch(headless=False,channel="chrome",args=['--disable-infobars', '--undetected-playwright'])
-    
-        #viewport={ 'width': 500, 'height': 400 },device_scale_factor=2,
-        page = browser.new_page()
+        # browser = playwright.chromium.launch(headless=False,channel="chrome", args=chrome_args)              # args=['--disable-infobars', '--undetected-playwright']
+        
+        # If context_options is None, launch the browser without a proxy
+        if context_options is not None:
+            browser = playwright.chromium.launch(headless=False, channel="chrome", args=chrome_args, proxy=context_options["proxy"])
+            context = browser.new_context(**context_options)    # Create a context with the configured options
+        else:
+            browser = playwright.chromium.launch(headless=False, channel="chrome", args=chrome_args)
+            context = browser.new_context()                     # Create a context without proxy options
+        
+        # viewport={ 'width': 500, 'height': 400 },device_scale_factor=2,
+        # page = browser.new_page()
+        page = context.new_page()   # Perform your tasks using the 'page' object
+            
         page.set_default_navigation_timeout(5000000)
         print('Started Steam Gen')
         page.goto("https://store.steampowered.com/join", wait_until="networkidle")
@@ -314,12 +378,18 @@ def createSteam(email, password):
 ##                         EA GEN START                              ##
 #######################################################################
 
-def createEA(email, steam_username, steam_password):
+def createEA(email, steam_username, steam_password, chrome_args=None, context_options=None):
     with sync_playwright() as p:
-        browser: Playwright = p.chromium.launch(headless=False, channel="chrome", args=['--disable-infobars', '--undetected-playwright'])
-        context = browser.new_context()
+        # browser: Playwright = p.chromium.launch(headless=False, channel="chrome", args=chrome_args)         # args=['--disable-infobars', '--undetected-playwright']
+        
+        if context_options is not None:
+            browser: Playwright = p.chromium.launch(headless=False, channel="chrome", args=chrome_args, proxy=context_options["proxy"])
+            context = browser.new_context(**context_options)    # Create a context with the configured options
+        else:
+            browser: Playwright = p.chromium.launch(headless=False, channel="chrome", args=chrome_args)
+            context = browser.new_context()                     # Create a context without proxy options
+        
         page = context.new_page()
-
         page.set_default_navigation_timeout(5000000)
         # Go to the EA account creation page
         page.goto('https://www.ea.com/login')
@@ -391,14 +461,15 @@ def createEA(email, steam_username, steam_password):
 #######################################################################
 
 def discordSend(title, email, password, accname=None):
-    webhook = DiscordWebhook(url=webhooks, username="ApenGen")
+    webhooks_url = get_webhooks_url()
+    webhook = DiscordWebhook(url=webhooks_url, username="ApexGen")
     
     if 'EA' in title and accname != None:
         embed = DiscordEmbed(title=f'{title} Linked to Steam Account', color='fc1303')
         embed.add_embed_field(name=f'Email', value=f'{email}')
         embed.add_embed_field(name=f'Steam', value=f'{accname}')
         embed.add_embed_field(name=f'Password', value=f'{password}')
-        embed.set_footer(text='indrasura')
+        embed.set_footer(text='Discord: indrasura')
         embed.set_timestamp()
         webhook.add_embed(embed)
         response = webhook.execute()
@@ -407,7 +478,7 @@ def discordSend(title, email, password, accname=None):
         embed = DiscordEmbed(title=f'{title} Account Generated', color='42f581')
         embed.add_embed_field(name=f'Email', value=f'{email}')
         embed.add_embed_field(name=f'Password', value=f'{password}')
-        embed.set_footer(text='indrasura')
+        embed.set_footer(text='Discord: indrasura')
         embed.set_timestamp()
         webhook.add_embed(embed)
         response = webhook.execute()
@@ -417,10 +488,9 @@ def discordSend(title, email, password, accname=None):
         embed.add_embed_field(name=f'Email', value=f'{email}')
         embed.add_embed_field(name=f'Steam', value=f'{accname}')
         embed.add_embed_field(name=f'Password', value=f'{password}')
-        embed.set_footer(text='indrasura')
+        embed.set_footer(text='Discord: indrasura')
         embed.set_timestamp()
         webhook.add_embed(embed)
         response = webhook.execute()
-
 
 # 130200ms restart router
