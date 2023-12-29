@@ -43,5 +43,5 @@ Please make sure to follow the coding style and conventions of the project. You 
 
 If you have any issues, questions, or suggestions, you can create an issue on the issues page.
 
-License
+## License
 ApexGen is licensed under the MIT License. See the LICENSE file for details.
